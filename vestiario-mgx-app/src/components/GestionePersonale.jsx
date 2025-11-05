@@ -3,10 +3,12 @@ import { supabase } from "../supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash, Search, ArrowUpDown } from "lucide-react";
 
 export default function GestionePersonale() {
   const [personale, setPersonale] = useState([]);
+  const [ricerca, setRicerca] = useState("");
+  const [ordinaPerNome, setOrdinaPerNome] = useState(true);
 
   // Form nuovo dipendente
   const [nome, setNome] = useState("");
@@ -16,7 +18,7 @@ export default function GestionePersonale() {
   const [tagliaGiubbotto, setTagliaGiubbotto] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
 
-  // Modale modifica
+  // Modale modifica e immagine
   const [dipendenteInModifica, setDipendenteInModifica] = useState(null);
   const [datiModifica, setDatiModifica] = useState({
     nome: "",
@@ -26,7 +28,6 @@ export default function GestionePersonale() {
     taglia_giubbotto: "",
     foto_url: "",
   });
-
   const [immagineSelezionata, setImmagineSelezionata] = useState(null);
 
   // Carica personale
@@ -34,14 +35,25 @@ export default function GestionePersonale() {
     const { data, error } = await supabase
       .from("personale")
       .select("*")
-      .order("id", { ascending: true });
-    if (error) alert("Errore caricamento: " + error.message);
-    else setPersonale(data || []);
+      .order(ordinaPerNome ? "nome" : "id", { ascending: true });
+
+    if (error) {
+      alert("Errore caricamento: " + error.message);
+      return;
+    }
+    setPersonale(data || []);
   }
 
   useEffect(() => {
     caricaPersonale();
-  }, []);
+  }, [ordinaPerNome]);
+
+  // Filtra in base alla ricerca
+  const personaleFiltrato = personale.filter(
+    (p) =>
+      p.nome.toLowerCase().includes(ricerca.toLowerCase()) ||
+      p.qualifica.toLowerCase().includes(ricerca.toLowerCase())
+  );
 
   // Inserisci nuovo dipendente
   async function aggiungiDipendente() {
@@ -98,6 +110,26 @@ export default function GestionePersonale() {
     <div className="p-6">
       <h2 className="text-2xl font-semibold mb-4">👷‍♂️ Gestione Personale</h2>
 
+      {/* Barra ricerca e ordinamento */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 w-full md:w-1/2">
+          <Search size={18} />
+          <Input
+            placeholder="Cerca per nome o qualifica..."
+            value={ricerca}
+            onChange={(e) => setRicerca(e.target.value)}
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setOrdinaPerNome(!ordinaPerNome)}
+          title="Cambia ordinamento"
+        >
+          <ArrowUpDown size={16} className="mr-1" />
+          Ordina per {ordinaPerNome ? "ID" : "Nome"}
+        </Button>
+      </div>
+
       {/* Form inserimento */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
         <Input placeholder="Nome e Cognome" value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -127,50 +159,58 @@ export default function GestionePersonale() {
           </tr>
         </thead>
         <tbody>
-          {personale.map((p) => (
-            <tr key={p.id} className="border-t">
-              <td>{p.id}</td>
-              <td>{p.nome}</td>
-              <td>{p.qualifica}</td>
-              <td>{p.taglia_tshirt}</td>
-              <td>{p.taglia_pantaloni}</td>
-              <td>{p.taglia_giubbotto}</td>
-              <td>
-                {p.foto_url ? (
-                  <img
-                    src={p.foto_url}
-                    alt={p.nome}
-                    className="w-12 h-12 rounded object-cover cursor-pointer mx-auto"
-                    onClick={() => setImmagineSelezionata(p.foto_url)}
-                  />
-                ) : (
-                  "—"
-                )}
-              </td>
-              <td className="space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setDipendenteInModifica(p);
-                    setDatiModifica({
-                      nome: p.nome,
-                      qualifica: p.qualifica,
-                      taglia_tshirt: p.taglia_tshirt,
-                      taglia_pantaloni: p.taglia_pantaloni,
-                      taglia_giubbotto: p.taglia_giubbotto,
-                      foto_url: p.foto_url,
-                    });
-                  }}
-                >
-                  <Pencil size={16} />
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => eliminaDipendente(p.id)}>
-                  <Trash size={16} />
-                </Button>
+          {personaleFiltrato.length === 0 ? (
+            <tr>
+              <td colSpan={8} className="py-3 text-gray-500 italic">
+                Nessun risultato trovato
               </td>
             </tr>
-          ))}
+          ) : (
+            personaleFiltrato.map((p) => (
+              <tr key={p.id} className="border-t hover:bg-gray-50 transition">
+                <td>{p.id}</td>
+                <td>{p.nome}</td>
+                <td>{p.qualifica}</td>
+                <td>{p.taglia_tshirt}</td>
+                <td>{p.taglia_pantaloni}</td>
+                <td>{p.taglia_giubbotto}</td>
+                <td>
+                  {p.foto_url ? (
+                    <img
+                      src={p.foto_url}
+                      alt={p.nome}
+                      className="w-12 h-12 rounded object-cover cursor-pointer mx-auto"
+                      onClick={() => setImmagineSelezionata(p.foto_url)}
+                    />
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDipendenteInModifica(p);
+                      setDatiModifica({
+                        nome: p.nome,
+                        qualifica: p.qualifica,
+                        taglia_tshirt: p.taglia_tshirt,
+                        taglia_pantaloni: p.taglia_pantaloni,
+                        taglia_giubbotto: p.taglia_giubbotto,
+                        foto_url: p.foto_url,
+                      });
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => eliminaDipendente(p.id)}>
+                    <Trash size={16} />
+                  </Button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
 
