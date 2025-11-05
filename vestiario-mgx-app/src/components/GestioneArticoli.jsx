@@ -3,7 +3,8 @@ import { supabase } from "../supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function GestioneArticoli() {
   const [articoli, setArticoli] = useState([]);
@@ -15,7 +16,6 @@ export default function GestioneArticoli() {
   const [codiceFornitore, setCodiceFornitore] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
 
-  // Stati per modale immagine e modifica
   const [immagineSelezionata, setImmagineSelezionata] = useState(null);
   const [articoloInModifica, setArticoloInModifica] = useState(null);
   const [datiModifica, setDatiModifica] = useState({
@@ -28,30 +28,21 @@ export default function GestioneArticoli() {
     foto_url: "",
   });
 
-  // Carica articoli dal database
   async function caricaArticoli() {
     const { data, error } = await supabase
       .from("articoli")
       .select("*")
       .order("id", { ascending: true });
-
-    if (error) {
-      alert("Errore durante il caricamento: " + error.message);
-      return;
-    }
-    setArticoli(data || []);
+    if (error) alert("Errore caricamento: " + error.message);
+    else setArticoli(data || []);
   }
 
   useEffect(() => {
     caricaArticoli();
   }, []);
 
-  // Inserimento nuovo articolo
   async function aggiungiArticolo() {
-    if (!nome) {
-      alert("Inserisci un nome per l'articolo!");
-      return;
-    }
+    if (!nome) return alert("Inserisci il nome dell'articolo!");
 
     const { error } = await supabase.from("articoli").insert([
       {
@@ -65,10 +56,9 @@ export default function GestioneArticoli() {
       },
     ]);
 
-    if (error) {
-      alert("Errore inserimento: " + error.message);
-    } else {
-      alert("Articolo aggiunto con successo ✅");
+    if (error) alert("Errore inserimento: " + error.message);
+    else {
+      alert("Articolo aggiunto ✅");
       setNome("");
       setTaglia("");
       setQuantita(1);
@@ -79,7 +69,6 @@ export default function GestioneArticoli() {
     }
   }
 
-  // Eliminazione articolo
   async function eliminaArticolo(id) {
     if (!window.confirm("Vuoi davvero eliminare questo articolo?")) return;
     const { error } = await supabase.from("articoli").delete().eq("id", id);
@@ -87,7 +76,6 @@ export default function GestioneArticoli() {
     else caricaArticoli();
   }
 
-  // Salvataggio modifica
   async function salvaModifiche() {
     const { error } = await supabase
       .from("articoli")
@@ -102,24 +90,46 @@ export default function GestioneArticoli() {
     }
   }
 
+  // 🔹 Genera e scarica file Excel
+  const scaricaInventario = () => {
+    if (articoli.length === 0) {
+      alert("Nessun articolo da esportare!");
+      return;
+    }
+
+    const foglio = XLSX.utils.json_to_sheet(articoli);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, foglio, "Inventario");
+    XLSX.writeFile(workbook, "Inventario_Vestiario.xlsx");
+  };
+
+  // 🔹 Calcolo automatico capi da riordinare
+  const capiDaRiordinare = articoli.filter((a) => a.quantita <= 3);
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-semibold mb-4">👕 Gestione Articoli</h2>
 
-      {/* Form inserimento */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
-        <Input placeholder="Nome capo" value={nome} onChange={(e) => setNome(e.target.value)} />
-        <Input placeholder="Tipo (es. T-shirt/Polo)" value={tipo} onChange={(e) => setTipo(e.target.value)} />
-        <Input placeholder="Taglia" value={taglia} onChange={(e) => setTaglia(e.target.value)} />
-        <Input placeholder="Quantità" type="number" value={quantita} onChange={(e) => setQuantita(e.target.value)} />
-        <Input placeholder="Fornitore" value={fornitore} onChange={(e) => setFornitore(e.target.value)} />
-        <Input placeholder="Codice fornitore" value={codiceFornitore} onChange={(e) => setCodiceFornitore(e.target.value)} />
-        <Input placeholder="URL foto (opzionale)" value={fotoUrl} onChange={(e) => setFotoUrl(e.target.value)} />
+      {/* Barra funzioni */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button className="bg-green-600 text-white" onClick={aggiungiArticolo}>
+          ➕ Aggiungi articolo
+        </Button>
+        <Button variant="outline" onClick={caricaArticoli}>
+          🔄 Aggiorna lista
+        </Button>
+        <Button variant="outline" onClick={scaricaInventario}>
+          <Download size={16} className="mr-1" /> Scarica Inventario
+        </Button>
       </div>
 
-      <Button className="bg-green-600 text-white mb-6" onClick={aggiungiArticolo}>
-        ➕ Aggiungi
-      </Button>
+      {/* Messaggio capi da riordinare */}
+      {capiDaRiordinare.length > 0 && (
+        <div className="bg-yellow-100 text-yellow-800 p-3 rounded mb-4 border border-yellow-300">
+          ⚠️ <b>Riordino consigliato:</b>{" "}
+          {capiDaRiordinare.map((a) => `${a.nome} (${a.quantita} pz)`).join(", ")}
+        </div>
+      )}
 
       {/* Tabella articoli */}
       <table className="w-full border text-sm text-center">
@@ -138,12 +148,12 @@ export default function GestioneArticoli() {
         </thead>
         <tbody>
           {articoli.map((a) => (
-            <tr key={a.id} className="border-t">
+            <tr key={a.id} className="border-t hover:bg-gray-50">
               <td>{a.id}</td>
               <td>{a.nome}</td>
               <td>{a.tipo}</td>
               <td>{a.taglia}</td>
-              <td>{a.quantita}</td>
+              <td className={a.quantita <= 3 ? "text-red-600 font-bold" : ""}>{a.quantita}</td>
               <td>{a.fornitore}</td>
               <td>{a.codice_fornitore}</td>
               <td>
@@ -151,7 +161,7 @@ export default function GestioneArticoli() {
                   <img
                     src={a.foto_url}
                     alt={a.nome}
-                    className="w-12 h-12 rounded object-cover cursor-pointer mx-auto"
+                    className="w-12 h-12 object-cover rounded cursor-pointer mx-auto"
                     onClick={() => setImmagineSelezionata(a.foto_url)}
                   />
                 ) : (
