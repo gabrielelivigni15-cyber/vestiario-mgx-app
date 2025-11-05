@@ -1,4 +1,4 @@
-import React from "react"
+import React from "react";
 
 export function Button({ children, onClick, type = "button", className = "" }) {
   return (
@@ -9,5 +9,7 @@ export function Button({ children, onClick, type = "button", className = "" }) {
     >
       {children}
     </button>
-  )
+  );
 }
+
+export default Button;
